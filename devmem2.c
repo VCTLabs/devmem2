@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Illegal data type '%c'.\n", access_type);
             exit(2);
     }
-    printf("Value at address 0x%zu (%p): 0x%lu\n", target, virt_addr, read_result);
+    printf("Value at address 0x%lld (%p): 0x%lu\n", (long long)target, virt_addr, read_result);
     fflush(stdout);
 
     if(argc > 3) {

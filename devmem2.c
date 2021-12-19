@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -59,7 +60,7 @@ int main(int argc, char **argv) {
     if(argc < 2) {
         fprintf(stderr, "\nUsage:\t%s { address } [ type [ data ] ]\n"
             "\taddress : memory address to act upon\n"
-            "\ttype    : access operation type : [b]yte, [h]alfword, [w]ord\n"
+            "\ttype    : access operation type : [b]yte, [h]alfword, [w]ord, [l]ong\n"
             "\tdata    : data to be written\n\n",
             argv[0]);
         exit(1);
@@ -93,9 +94,14 @@ int main(int argc, char **argv) {
             read_result = *((unsigned short *) virt_addr);
             break;
         case 'w':
-            data_size = sizeof(unsigned long);
+            data_size = sizeof(uint32_t);
             virt_addr = fixup_addr(virt_addr, data_size);
-            read_result = *((unsigned long *) virt_addr);
+            read_result = *((uint32_t *) virt_addr);
+            break;
+        case 'l':
+            data_size = sizeof(uint64_t);
+            virt_addr = fixup_addr(virt_addr, data_size);
+            read_result = *((uint64_t *) virt_addr);
             break;
         default:
             fprintf(stderr, "Illegal data type '%c'.\n", access_type);
@@ -119,9 +125,14 @@ int main(int argc, char **argv) {
                 read_result = *((unsigned short *) virt_addr);
                 break;
             case 'w':
-                virt_addr = fixup_addr(virt_addr, sizeof(unsigned long));
-                *((unsigned long *) virt_addr) = write_val;
-                read_result = *((unsigned long *) virt_addr);
+                virt_addr = fixup_addr(virt_addr, sizeof(uint32_t));
+                *((uint32_t *) virt_addr) = write_val;
+                read_result = *((uint32_t *) virt_addr);
+                break;
+            case 'l':
+                virt_addr = fixup_addr(virt_addr, sizeof(uint64_t));
+                *((uint64_t *) virt_addr) = write_val;
+                read_result = *((uint64_t *) virt_addr);
                 break;
         }
         sprintf(fmt_str, "Write at address 0x%%08lX (%%p): 0x%%0%dlX, "

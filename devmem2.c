@@ -29,6 +29,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -45,17 +46,21 @@
 #define MAP_SIZE 4096UL
 #define MAP_MASK (MAP_SIZE - 1)
 
+static inline void *fixup_addr(void *addr, size_t size);
+
 int main(int argc, char **argv) {
     int fd;
     void *map_base, *virt_addr;
-    unsigned long read_result, writeval;
+    unsigned long read_result, write_val;
     off_t target;
     int access_type = 'w';
+    char fmt_str[128];
+    size_t data_size;
 
     if(argc < 2) {
         fprintf(stderr, "\nUsage:\t%s { address } [ type [ data ] ]\n"
             "\taddress : memory address to act upon\n"
-            "\ttype    : access operation type : [b]yte, [h]alfword, [w]ord\n"
+            "\ttype    : access operation type : [b]yte, [h]alfword, [w]ord, [l]ong\n"
             "\tdata    : data to be written\n\n",
             argv[0]);
         exit(1);
@@ -79,42 +84,75 @@ int main(int argc, char **argv) {
     virt_addr = map_base + (target & MAP_MASK);
     switch(access_type) {
         case 'b':
+            data_size = sizeof(unsigned char);
+            virt_addr = fixup_addr(virt_addr, data_size);
             read_result = *((unsigned char *) virt_addr);
             break;
         case 'h':
+            data_size = sizeof(unsigned short);
+            virt_addr = fixup_addr(virt_addr, data_size);
             read_result = *((unsigned short *) virt_addr);
             break;
         case 'w':
-            read_result = *((unsigned long *) virt_addr);
+            data_size = sizeof(uint32_t);
+            virt_addr = fixup_addr(virt_addr, data_size);
+            read_result = *((uint32_t *) virt_addr);
+            break;
+        case 'l':
+            data_size = sizeof(uint64_t);
+            virt_addr = fixup_addr(virt_addr, data_size);
+            read_result = *((uint64_t *) virt_addr);
             break;
         default:
             fprintf(stderr, "Illegal data type '%c'.\n", access_type);
             exit(2);
     }
-    printf("Value at address 0x%lld (%p): 0x%lu\n", (long long)target, virt_addr, read_result);
+    sprintf(fmt_str, "Read at address  0x%%08lX (%%p): 0x%%0%dlX\n", 2*data_size);
+    printf(fmt_str, (unsigned long)target, virt_addr, read_result);
     fflush(stdout);
 
     if(argc > 3) {
-        writeval = strtoul(argv[3], 0, 0);
+        write_val = strtoul(argv[3], 0, 0);
         switch(access_type) {
             case 'b':
-                *((unsigned char *) virt_addr) = writeval;
+                virt_addr = fixup_addr(virt_addr, sizeof(unsigned char));
+                *((unsigned char *) virt_addr) = write_val;
                 read_result = *((unsigned char *) virt_addr);
                 break;
             case 'h':
-                *((unsigned short *) virt_addr) = writeval;
+                virt_addr = fixup_addr(virt_addr, sizeof(unsigned short));
+                *((unsigned short *) virt_addr) = write_val;
                 read_result = *((unsigned short *) virt_addr);
                 break;
             case 'w':
-                *((unsigned long *) virt_addr) = writeval;
-                read_result = *((unsigned long *) virt_addr);
+                virt_addr = fixup_addr(virt_addr, sizeof(uint32_t));
+                *((uint32_t *) virt_addr) = write_val;
+                read_result = *((uint32_t *) virt_addr);
+                break;
+            case 'l':
+                virt_addr = fixup_addr(virt_addr, sizeof(uint64_t));
+                *((uint64_t *) virt_addr) = write_val;
+                read_result = *((uint64_t *) virt_addr);
                 break;
         }
-        printf("Written 0x%lu; readback 0x%lu\n", writeval, read_result);
+        sprintf(fmt_str, "Write at address 0x%%08lX (%%p): 0x%%0%dlX, "
+                "readback 0x%%0%dlX\n", 2*data_size, 2*data_size);
+        printf(fmt_str, (unsigned long)target, virt_addr,
+               write_val, read_result);
         fflush(stdout);
     }
 
     if(munmap(map_base, MAP_SIZE) == -1) FATAL;
     close(fd);
     return 0;
+}
+
+static inline void *fixup_addr(void *addr, size_t size)
+{
+#ifdef FORCE_STRICT_ALIGNMENT
+       unsigned long aligned_addr = (unsigned long)addr;
+       aligned_addr &= ~(size - 1);
+       addr = (void *)aligned_addr;
+#endif
+       return addr;
 }
